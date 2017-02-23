@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang='en'>
+  <head>
+    <title>Scoreboard</title>
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+    <!-- Optional theme -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.12/css/jquery.dataTables.min.css" crossorigin="anonymous">
+    <style type="text/css" media="screen">
+        #spinner {
+          position: fixed;
+          top: calc(50% - 50px);
+          left: calc(50% - 50px)
+        }
+    </style>
+  </head>
+
+  <body>
+    <div id='spinner' style='display:none;'>
+        <img id='img-spinner' src='gif/spinner.gif' alt='Loading'/>
+    </div>
+    <div class='col-md-12 text-center'>
+      <h1><a href='file:///C:/Users/Adam/dev/source/babel_lambda/index.html' id='title'>Scoreboard</a><div id='identifier'</div></h1>
+      <button class='btn btn-default front' type='submit' style='width:250px;margin:5px' onclick="createScoreboard()">Create New Scoreboard</button>
+      <!-- <button class='btn btn-default session' type='submit' style='width:250px;margin:5px' onclick="deleteScoreboard()">Delete Session</button> -->
+      </br>
+      <!-- <button class='btn btn-default front' type='submit' style='width:250px;margin:5px' onclick="hideErry()">Join Existing Session</button> -->
+      <input class='front text-center' id='sess_input' type='text' maxlength="6" placeholder='Go To Existing Scoreboard'></input>
+      <table id="scoreboard" class="display session" cellspacing="0" width="100%">
+          <tfoot>
+            <tr id="table_footer">
+            </tr>
+          </tfoot>
+      </table>
+      <div class="navbar navbar-fixed-bottom"><i id='vFooter'></i></div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.1.1.js" integrity="sha256-16cdPddA6VdVInumRGo6IbivbERE8p7CQR3HzTBuELA=" crossorigin="anonymous"></script>    <!-- Latest compiled and minified JavaScript -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-url-parser/2.3.1/purl.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js" crossorigin="anonymous"></script>
+    <script>
+      $( document ).ready(function() {
+          var xmlHttp = new XMLHttpRequest();
+          xmlHttp.open( "GET", "https://gogm5dxkf9.execute-api.us-east-2.amazonaws.com/dev/api/version", true );
+          xmlHttp.setRequestHeader("Content-type", "application/json");
+          xmlHttp.onreadystatechange = function() {
+            if (xmlHttp.readyState == 4 && xmlHttp.status == 200 && xmlHttp.responseText != undefined) {
+              var vJson = JSON.parse(xmlHttp.responseText);
+              console.log( "Adding footer Version ", vJson.version );
+              $( "#vFooter" ).text("Version "+ vJson.version);
+
+            }
+          };
+          xmlHttp.send();
+          var url = purl();
+          var session_id = url.param('id')
+          if (session_id) {
+            console.log("Session id is present")
+            $(".front").hide()
+            $(".session").show()
+            $('#title').text('Scoreboard: ')
+            $('#identifier').text(session_id)
+            readScoreboard(session_id)
+          } else {
+            console.log("Session id is not present")
+            $(".front").show()
+            $(".session").hide()
+          }
+      });
+
+      $('#sess_input').on('input', function() {
+        if($(this).val().length > 5) {
+             console.log("Session changed.")
+             //TODO error message if does not exist
+             var url=window.location.href,
+                 separator = (url.indexOf("?")===-1)?"?":"&",
+                 newParam=separator + "id=" + $(this).val();
+                 newUrl=url.replace(newParam,"");
+                 newUrl+=newParam;
+                 window.location.href =newUrl;
+        }
+      });
+      $(document).on("change", "#new_player", function()
+       {
+         var alNumRegex = /^([a-zA-Z0-9]+)$/; //only letters and numbers
+         if(!alNumRegex.test($(this).val())) {
+            alert("Players names must only contain letters and numbers.");
+            return;
+         }
+         var columnData = myDatatable.column().data()
+         var row_contents = [$(this).val()]
+         for (var i = 0, len = myDatatable.columns().header().length; i < len-2; i++) {
+           row_contents.push(0)
+         }
+         row_contents.push('')
+         myDatatable.row.add(row_contents)
+         myDatatable.draw()
+         updateScoreboard(myDatatable, null, null)
+         $(this).val('');
+       }
+      );
+      $(document)
+        .on("change", "#new_metric", function() {
+         var alNumRegex = /^([a-zA-Z0-9]+)$/; //only letters and numbers
+         if(!alNumRegex.test($(this).val())) {
+            alert("Metric names must only contain letters and numbers.");
+            return;
+         }
+         var url = purl();
+         var session_id = url.param('id')
+         var num_columns = myDatatable.columns().header().length
+         var new_metric_name = $(this).val()
+         updateScoreboard(myDatatable, new_metric_name, num_columns)
+       })
+       .keypress(function(e) {
+        if ((e.keyCode || e.which) == 13) {
+          var alNumRegex = /^([a-zA-Z0-9]+)$/; //only letters and numbers
+          if(!alNumRegex.test($('#new_metric').val())) {
+             alert("Metric names must only contain letters and numbers.");
+             return;
+          }
+          var url = purl();
+          var session_id = url.param('id')
+          var num_columns = myDatatable.columns().header().length
+          var new_metric_name = $('#new_metric').val()
+          updateScoreboard(myDatatable, new_metric_name, num_columns)
+        }});
+      $('#scoreboard').on( 'click', 'td', function () {
+          value = myDatatable.cell( this ).data()
+          if (!isNaN(value)){
+            myDatatable.cell( this ).data(value + 1)
+            updateScoreboard(myDatatable, null, null)
+          } else {
+            if (confirm("Do you wish to delete this player?") == true) {
+              myDatatable
+                .row( $(this).parents('tr') )
+                .remove()
+                .draw();
+              updateScoreboard(myDatatable, null, null)
+            }
+          }
+      });
+      $('#identifier').click(function() {
+        var url = purl();
+        console.log(url.attr('source'))
+        copyToClipboard(url.attr('source'))
+      });
+      function copyToClipboard(text) {
+        window.prompt("Copy to clipboard: Ctrl+C, Enter", text);
+      }
+      function createScoreboard() {
+        $('#spinner').show();
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open( "POST", "https://gogm5dxkf9.execute-api.us-east-2.amazonaws.com/dev/session", true ); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-type", "application/json");
+        xmlHttp.onreadystatechange = function() {
+          if (xmlHttp.readyState == 4 && xmlHttp.status == 200 && xmlHttp.responseText != undefined) {
+            console.log("New Session", xmlHttp.responseText);
+            var sJson = JSON.parse(xmlHttp.responseText);
+            $('#spinner').hide();
+            var url=window.location.href,
+                separator = (url.indexOf("?")===-1)?"?":"&",
+                newParam=separator + "id=" + sJson.session_id;
+                newUrl=url.replace(newParam,"");
+                newUrl+=newParam;
+                window.location.href =newUrl;
+          }
+        };
+        xmlHttp.send( JSON.stringify({}) );
+        return xmlHttp.responseText;
+      }
+      function updateScoreboard(myDatatable, metric, cols) {
+        var url = purl();
+        var session_id = url.param('id')
+        console.log("Session ID: ", session_id)
+        var table_data = myDatatable.data()
+        var table_data_subset = []
+        for (var i = 0, len = table_data.length; i < len; i++) {
+          table_data_subset.push(table_data[i])
+        }
+        if (table_data_subset.length == 0) {
+          table_data_subset = null
+        } else {
+          if (metric){
+            for (var i = 0, len = table_data_subset.length; i < len; i++) {
+              console.log('i:', i, ' table_data_subset', table_data_subset, ' ti', table_data_subset[i])
+              table_data_subset[i].splice(cols -1, 0, 0)
+            }
+          }
+          table_data_subset = JSON.stringify(table_data_subset)
+        }
+        var column_headers = myDatatable.columns().header()
+        var column_headers_subset = []
+        for (var i = 0, len = column_headers.length; i < len; i++) {
+          console.log(column_headers[i].innerHTML);
+          column_headers_subset.push(column_headers[i].innerHTML)
+        }
+        console.log('Metric:', metric, ' Cols:', cols)
+        if (metric) {
+          console.log("table", table_data_subset)
+          column_headers_subset.splice(cols -1, 0, metric)
+        }
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open( "PUT", "https://gogm5dxkf9.execute-api.us-east-2.amazonaws.com/dev/session/" + session_id , true ); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-type", "application/json");
+        var body =  {
+            "table_data": table_data_subset,
+            "column_data": JSON.stringify(column_headers_subset)
+          }
+        xmlHttp.onreadystatechange = function() {
+          if (xmlHttp.readyState == 4 && xmlHttp.status == 200 && xmlHttp.responseText != undefined) {
+            console.log("Update Session", xmlHttp.responseText);
+            if (metric){
+              location.reload()
+            }
+
+          }
+        };
+        xmlHttp.send( JSON.stringify(body) );
+        return xmlHttp.responseText;
+      }
+      function readScoreboard(session_id) {
+        var url = "https://gogm5dxkf9.execute-api.us-east-2.amazonaws.com/dev/session/" + session_id ;
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open( "GET", url, true ); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-type", "application/json");
+        // xmlHttp.setRequestHeader("Access-Control-Allow-Origin", "*");
+        xmlHttp.onreadystatechange = function() {
+          if (xmlHttp.readyState == 4 && xmlHttp.status == 200 && xmlHttp.responseText != undefined) {
+            console.log("Reading...", session_id, xmlHttp.responseText);
+            var sJson = JSON.parse(xmlHttp.responseText);
+            var columns = []
+            var column_data = sJson['Item']['column_data']
+            column_data = column_data.slice(2, column_data.length -2)
+            column_data = column_data.split('","')
+            var i =0
+            for (title in column_data) {
+              prep = { "title": column_data[title].replace(/\\/g, ''), className: "dt-center", "targets": [ i ]}
+              columns.push(prep)
+              i++
+            }
+            // Remove all dom elements in footer and replace.
+            $( "#table_footer" ).empty()
+            $( "#table_footer" ).append("<th><input id='new_player' class='text-center' style='border:none;visibility:hidden;' placeholder='Add Player'></input></th>")
+            for (var i = 0, len = column_data.length -1; i < len; i++) {
+              $( "#table_footer" ).append("<th></th>")
+            }
+            var table_data =  JSON.parse(sJson['Item']['table_data'])
+            if (table_data){
+              myDatatable =  $('#scoreboard').DataTable({
+                  responsive: true,
+                  paging: false,
+                  searching: false,
+                  autowidth: true,
+                  info: false,
+                "columnDefs": columns,
+                "data": table_data,
+                "language": {
+                "emptyTable": "Start by adding a player or metric"}
+              });
+
+            } else {
+              myDatatable =  $('#scoreboard').DataTable({
+                  responsive: true,
+                  paging: false,
+                  searching: false,
+                  autowidth: true,
+                  info: false,
+                  "columnDefs": columns,
+                "language": {
+                "emptyTable": "Start by adding a player or metric"}
+              });
+            }
+            $("#new_player").css("visibility", "visible")
+          }
+        };
+        xmlHttp.send();
+        return xmlHttp.responseText;
+      }
+      function deleteScoreboard() {
+        var url = purl();
+        var session_id = url.param('id')
+        var xmlHttp = new XMLHttpRequest();
+        var url = "https://gogm5dxkf9.execute-api.us-east-2.amazonaws.com/dev/session/" + session_id ;
+        console.log("Url", url)
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open( "DELETE", url, true );
+        xmlHttp.setRequestHeader("Content-type", "application/json");
+        // xmlHttp.setRequestHeader("Access-Control-Allow-Origin", "*");
+        xmlHttp.onreadystatechange = function() {
+          if (xmlHttp.readyState == 4 && xmlHttp.status == 200 && xmlHttp.responseText != undefined) {
+            console.log("Delete Session", xmlHttp.responseText);
+            var url=window.location.protocol + '//' + window.location.host + window.location.pathname
+                window.location.href =url;
+          }
+        };
+        xmlHttp.send( JSON.stringify({}) );
+        return xmlHttp.responseText;
+      }
+
+    </script>
+  </body>
+</html>
