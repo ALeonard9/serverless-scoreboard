@@ -9,7 +9,7 @@ A serverless, single-page application for collaboratively sharing and tracking s
 
 ## Usage
 
-1. Navigate to https://www.yokozuna.io.
+1. Navigate to https://www.aleonard.us/scoreboard/scoreboard.html.
 2. Create Scoreboard.
 3. Add Metrics and players.
 4. Click the score box to increment the score by 1.
